@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Shorts Creator</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0b0b12;
+    color: #f4f4f7;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    max-width: 480px;
+    width: 100%;
+    background: #15151f;
+    border: 1px solid #2a2a3a;
+    border-radius: 16px;
+    padding: 32px 28px;
+  }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 6px;
+  }
+  p.sub {
+    color: #9a9aab;
+    margin: 0 0 24px;
+    font-size: 14px;
+  }
+  input[type="file"] {
+    width: 100%;
+    padding: 14px;
+    border-radius: 10px;
+    border: 1px dashed #3a3a4d;
+    background: #1d1d29;
+    color: #f4f4f7;
+    margin-bottom: 16px;
+  }
+  button {
+    width: 100%;
+    padding: 14px;
+    border-radius: 10px;
+    border: none;
+    background: #6c5ce7;
+    color: white;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  button:disabled { background: #3a3a4d; cursor: not-allowed; }
+  #status {
+    margin-top: 20px;
+    font-size: 14px;
+    color: #b8b8c8;
+  }
+  .clip {
+    margin-top: 12px;
+    padding: 14px;
+    background: #1d1d29;
+    border-radius: 10px;
+  }
+  .clip a {
+    color: #a29bfe;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .clip .title { font-weight: 600; margin-bottom: 4px; }
+  .clip .reason { color: #9a9aab; font-size: 13px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>AI Shorts Creator</h1>
+    <p class="sub">Upload a long video. Get back captioned, vertical short clips.</p>
+
+    <input type="file" id="fileInput" accept="video/*" />
+    <button id="uploadBtn">Upload & Process</button>
+
+    <div id="status"></div>
+    <div id="clips"></div>
+  </div>
+
+<script>
+// Point this at your deployed backend URL once Railway gives you one,
+// e.g. "https://shorts-creater.up.railway.app"
+const API_BASE = "https://YOUR-RAILWAY-URL.up.railway.app";
+
+const fileInput = document.getElementById("fileInput");
+const uploadBtn = document.getElementById("uploadBtn");
+const statusDiv = document.getElementById("status");
+const clipsDiv = document.getElementById("clips");
+
+uploadBtn.addEventListener("click", async () => {
+  const file = fileInput.files[0];
+  if (!file) {
+    statusDiv.textContent = "Please choose a video file first.";
+    return;
+  }
+
+  uploadBtn.disabled = true;
+  statusDiv.textContent = "Uploading...";
+  clipsDiv.innerHTML = "";
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const res = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
+    const data = await res.json();
+    const jobId = data.job_id;
+    statusDiv.textContent = "Processing (this can take a few minutes)...";
+    poll(jobId);
+  } catch (err) {
+    statusDiv.textContent = "Upload failed: " + err.message;
+    uploadBtn.disabled = false;
+  }
+});
+
+async function poll(jobId) {
+  try {
+    const res = await fetch(`${API_BASE}/status/${jobId}`);
+    const data = await res.json();
+
+    if (data.status === "done") {
+      statusDiv.textContent = "Done! Your clips:";
+      renderClips(jobId, data.clips);
+      uploadBtn.disabled = false;
+      return;
+    }
+    if (data.status === "error") {
+      statusDiv.textContent = "Error: " + data.error;
+      uploadBtn.disabled = false;
+      return;
+    }
+
+    statusDiv.textContent = "Status: " + data.status.replaceAll("_", " ") + "...";
+    setTimeout(() => poll(jobId), 4000);
+  } catch (err) {
+    statusDiv.textContent = "Status check failed: " + err.message;
+    uploadBtn.disabled = false;
+  }
+}
+
+function renderClips(jobId, clips) {
+  clipsDiv.innerHTML = "";
+  clips.forEach((clip) => {
+    const div = document.createElement("div");
+    div.className = "clip";
+    div.innerHTML = `
+      <div class="title">${clip.title}</div>
+      <div class="reason">${clip.reason}</div>
+      <a href="${API_BASE}/download/${jobId}/${clip.filename}" target="_blank">Download MP4</a>
+    `;
+    clipsDiv.appendChild(div);
+  });
+}
+</script>
+</body>
+</html>
