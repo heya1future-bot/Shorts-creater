@@ -113,8 +113,12 @@ uploadBtn.addEventListener("click", async () => {
 
   try {
     const res = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
-    const data = await res.json();
-    const jobId = data.job_id;
+if (!res.ok) {
+  const text = await res.text();
+  throw new Error(`Server returned ${res.status}: ${text.slice(0, 200)}`);
+}
+const data = await res.json();
+const jobId = data.job_id;
     statusDiv.textContent = "Processing (this can take a few minutes)...";
     poll(jobId);
   } catch (err) {
